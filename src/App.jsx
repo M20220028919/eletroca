@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 // ── 1. Dados reais extraídos da planilha (Relatorio_eletro_v1.xlsx) ─────────
 // TODOS os itens da planilha foram incluídos, sem filtro adicional (já é uma
@@ -47,6 +48,20 @@ function AbaDashboard() {
   const maxCatQtd = Math.max(...CATEGORIAS.map(c => c.qtd));
   const [categoriaAberta, setCategoriaAberta] = useState(null);
 
+  const dadosPareto = useMemo(() => {
+    const totalQtd = CATEGORIAS.reduce((acc, c) => acc + c.qtd, 0);
+    let acumulado = 0;
+    return CATEGORIAS.map(c => {
+      acumulado += c.qtd;
+      return {
+        nome: c.nome.length > 18 ? c.nome.slice(0, 18) + "…" : c.nome,
+        nomeCompleto: c.nome,
+        qtd: c.qtd,
+        acumuladoPct: Number(((acumulado / totalQtd) * 100).toFixed(1))
+      };
+    });
+  }, []);
+
   const itensCategoria = useMemo(() => {
     if (!categoriaAberta) return [];
     return INVENTARIO.filter(i => i.categoria === categoriaAberta);
@@ -79,6 +94,29 @@ function AbaDashboard() {
             </div>
           );
         })}
+      </div>
+
+      {/* Gráfico de Pareto */}
+      <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 24, marginBottom: 24 }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>Gráfico de Pareto — Categorias por Volume</div>
+        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>Categorias ordenadas por quantidade de itens, com curva de percentual acumulado. A linha tracejada marca os 80%.</div>
+
+        <ResponsiveContainer width="100%" height={340}>
+          <ComposedChart data={dadosPareto} margin={{ top: 10, right: 20, left: 0, bottom: 70 }}>
+            <CartesianGrid stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="nome" angle={-35} textAnchor="end" interval={0} tick={{ fontSize: 11, fill: "#64748b" }} height={90} />
+            <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "#64748b" }} label={{ value: "Itens", angle: -90, position: "insideLeft", fontSize: 11, fill: "#94a3b8" }} />
+            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 11, fill: "#64748b" }} label={{ value: "% Acumulado", angle: 90, position: "insideRight", fontSize: 11, fill: "#94a3b8" }} />
+            <Tooltip
+              formatter={(value, name) => name === "acumuladoPct" ? [`${value}%`, "Acumulado"] : [value, "Itens"]}
+              labelFormatter={(label, payload) => (payload && payload[0] ? payload[0].payload.nomeCompleto : label)}
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
+            />
+            <ReferenceLine yAxisId="right" y={80} stroke="#cbd5e1" strokeDasharray="4 4" />
+            <Bar yAxisId="left" dataKey="qtd" fill="#38bdf8" radius={[6, 6, 0, 0]} barSize={38} />
+            <Line yAxisId="right" type="monotone" dataKey="acumuladoPct" stroke="#dc2626" strokeWidth={2.5} dot={{ r: 4, fill: "#dc2626" }} />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Segregação por Categoria */}
