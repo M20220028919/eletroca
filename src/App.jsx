@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 // ── 1. Dados reais extraídos da planilha (Relatorio_eletro_v1.xlsx) ─────────
 // TODOS os itens da planilha foram incluídos, sem filtro adicional (já é uma
@@ -43,6 +42,127 @@ function BadgeClassificacao({ classe }) {
 }
 
 // ── 2. Componentes das Abas ───────────────────────────────────────────────
+
+function GraficoPareto({ dados }) {
+  const [hoverIdx, setHoverIdx] = useState(null);
+
+  const W = 900, H = 340;
+  const padL = 50, padR = 50, padT = 20, padB = 90;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  const maxQtd = Math.max(...dados.map(d => d.qtd));
+  const n = dados.length;
+  const slot = chartW / n;
+  const barW = Math.min(slot * 0.55, 42);
+
+  const xCenter = i => padL + slot * i + slot / 2;
+  const yBar = qtd => padT + chartH - (qtd / maxQtd) * chartH;
+  const yLine = pct => padT + chartH - (pct / 100) * chartH;
+
+  const linePoints = dados.map((d, i) => `${xCenter(i)},${yLine(d.acumuladoPct)}`).join(" ");
+
+  const yTicksEsq = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(maxQtd * f));
+  const yTicksDir = [0, 25, 50, 75, 100];
+
+  return (
+    <div style={{ position: "relative", width: "100%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", minWidth: 600 }}>
+        {/* grid horizontal */}
+        {yTicksEsq.map((t, i) => (
+          <line key={i} x1={padL} x2={W - padR} y1={yBar(t)} y2={yBar(t)} stroke="#f1f5f9" strokeWidth={1} />
+        ))}
+
+        {/* eixo esquerdo (quantidade) */}
+        {yTicksEsq.map((t, i) => (
+          <text key={i} x={padL - 8} y={yBar(t) + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{t}</text>
+        ))}
+
+        {/* eixo direito (% acumulado) */}
+        {yTicksDir.map((t, i) => (
+          <text key={i} x={W - padR + 8} y={yLine(t) + 4} textAnchor="start" fontSize="10" fill="#94a3b8">{t}%</text>
+        ))}
+
+        {/* linha de referência 80% */}
+        <line x1={padL} x2={W - padR} y1={yLine(80)} y2={yLine(80)} stroke="#cbd5e1" strokeWidth={1} strokeDasharray="4 4" />
+        <text x={W - padR + 8} y={yLine(80) - 4} fontSize="9" fill="#cbd5e1">80%</text>
+
+        {/* barras */}
+        {dados.map((d, i) => (
+          <g key={d.nomeCompleto}>
+            <rect
+              x={xCenter(i) - barW / 2}
+              y={yBar(d.qtd)}
+              width={barW}
+              height={chartH - (yBar(d.qtd) - padT)}
+              fill={hoverIdx === i ? "#0ea5e9" : "#38bdf8"}
+              rx={4}
+              onMouseEnter={() => setHoverIdx(i)}
+              onMouseLeave={() => setHoverIdx(null)}
+              style={{ cursor: "pointer" }}
+            />
+            {/* rótulo eixo x */}
+            <text
+              x={xCenter(i)}
+              y={H - padB + 14}
+              textAnchor="end"
+              fontSize="10"
+              fill="#64748b"
+              transform={`rotate(-35 ${xCenter(i)} ${H - padB + 14})`}
+            >
+              {d.nome}
+            </text>
+          </g>
+        ))}
+
+        {/* linha de percentual acumulado */}
+        <polyline points={linePoints} fill="none" stroke="#dc2626" strokeWidth={2.5} />
+        {dados.map((d, i) => (
+          <circle
+            key={i}
+            cx={xCenter(i)}
+            cy={yLine(d.acumuladoPct)}
+            r={hoverIdx === i ? 5 : 3.5}
+            fill="#dc2626"
+            onMouseEnter={() => setHoverIdx(i)}
+            onMouseLeave={() => setHoverIdx(null)}
+            style={{ cursor: "pointer" }}
+          />
+        ))}
+
+        {/* eixos base */}
+        <line x1={padL} x2={padL} y1={padT} y2={padT + chartH} stroke="#e2e8f0" />
+        <line x1={W - padR} x2={W - padR} y1={padT} y2={padT + chartH} stroke="#e2e8f0" />
+        <line x1={padL} x2={W - padR} y1={padT + chartH} y2={padT + chartH} stroke="#e2e8f0" />
+      </svg>
+
+      {/* tooltip */}
+      {hoverIdx !== null && (
+        <div style={{
+          position: "absolute",
+          left: `${(xCenter(hoverIdx) / W) * 100}%`,
+          top: `${(yBar(dados[hoverIdx].qtd) / H) * 100}%`,
+          transform: "translate(-50%, -110%)",
+          background: "#0f172a", color: "#fff", padding: "8px 12px", borderRadius: 8,
+          fontSize: 12, whiteSpace: "nowrap", pointerEvents: "none", zIndex: 20,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>{dados[hoverIdx].nomeCompleto}</div>
+          <div>{dados[hoverIdx].qtd} itens · Acumulado {dados[hoverIdx].acumuladoPct}%</div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 20, justifyContent: "center", marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#64748b" }}>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: "#38bdf8" }} /> Itens por categoria
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#64748b" }}>
+          <div style={{ width: 12, height: 2, background: "#dc2626" }} /> % Acumulado
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function AbaDashboard() {
   const maxCatQtd = Math.max(...CATEGORIAS.map(c => c.qtd));
@@ -101,22 +221,7 @@ function AbaDashboard() {
         <div style={{ fontSize: 16, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>Gráfico de Pareto — Categorias por Volume</div>
         <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>Categorias ordenadas por quantidade de itens, com curva de percentual acumulado. A linha tracejada marca os 80%.</div>
 
-        <ResponsiveContainer width="100%" height={340}>
-          <ComposedChart data={dadosPareto} margin={{ top: 10, right: 20, left: 0, bottom: 70 }}>
-            <CartesianGrid stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="nome" angle={-35} textAnchor="end" interval={0} tick={{ fontSize: 11, fill: "#64748b" }} height={90} />
-            <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "#64748b" }} label={{ value: "Itens", angle: -90, position: "insideLeft", fontSize: 11, fill: "#94a3b8" }} />
-            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 11, fill: "#64748b" }} label={{ value: "% Acumulado", angle: 90, position: "insideRight", fontSize: 11, fill: "#94a3b8" }} />
-            <Tooltip
-              formatter={(value, name) => name === "acumuladoPct" ? [`${value}%`, "Acumulado"] : [value, "Itens"]}
-              labelFormatter={(label, payload) => (payload && payload[0] ? payload[0].payload.nomeCompleto : label)}
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
-            />
-            <ReferenceLine yAxisId="right" y={80} stroke="#cbd5e1" strokeDasharray="4 4" />
-            <Bar yAxisId="left" dataKey="qtd" fill="#38bdf8" radius={[6, 6, 0, 0]} barSize={38} />
-            <Line yAxisId="right" type="monotone" dataKey="acumuladoPct" stroke="#dc2626" strokeWidth={2.5} dot={{ r: 4, fill: "#dc2626" }} />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <GraficoPareto dados={dadosPareto} />
       </div>
 
       {/* Segregação por Categoria */}
